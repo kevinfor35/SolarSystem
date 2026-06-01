@@ -163,27 +163,44 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
     }
 
     if (planet.hasRings) {
-      const ringGeometry = new THREE.RingGeometry(baseSize * 1.4, baseSize * 2.3, 128);
-      const ringMaterial = new THREE.MeshBasicMaterial({
-        color: 0xc9b896,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.75,
-      });
-      const rings = new THREE.Mesh(ringGeometry, ringMaterial);
-      rings.rotation.x = Math.PI / 2.4;
-      planetGroup.add(rings);
+      if (planet.id === 'saturn') {
+        const ringGeometry = new THREE.RingGeometry(baseSize * 1.3, baseSize * 2.5, 128);
+        const ringTexture = textureLoaderRef.current.load('/textures/2k_saturn_ring_alpha.png');
+        ringTexture.colorSpace = THREE.SRGBColorSpace;
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          map: ringTexture,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.9,
+        });
+        const rings = new THREE.Mesh(ringGeometry, ringMaterial);
+        rings.rotation.x = Math.PI / 2.3;
+        planetGroup.add(rings);
+      } else {
+        const ringGeometry = new THREE.RingGeometry(baseSize * 1.4, baseSize * 2.3, 128);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          color: 0xc9b896,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.75,
+        });
+        const rings = new THREE.Mesh(ringGeometry, ringMaterial);
+        rings.rotation.x = Math.PI / 2.4;
+        planetGroup.add(rings);
+      }
+    }
 
-      const outerRingGeometry = new THREE.RingGeometry(baseSize * 2.4, baseSize * 2.9, 64);
-      const outerRingMaterial = new THREE.MeshBasicMaterial({
-        color: 0xa89876,
-        side: THREE.DoubleSide,
+    if (planet.id === 'earth') {
+      const cloudsGeometry = new THREE.SphereGeometry(baseSize * 1.02, 64, 64);
+      const cloudsTexture = textureLoaderRef.current.load('/textures/2k_earth_clouds.jpg');
+      cloudsTexture.colorSpace = THREE.SRGBColorSpace;
+      const cloudsMaterial = new THREE.MeshBasicMaterial({
+        map: cloudsTexture,
         transparent: true,
         opacity: 0.4,
       });
-      const outerRings = new THREE.Mesh(outerRingGeometry, outerRingMaterial);
-      outerRings.rotation.x = Math.PI / 2.4;
-      planetGroup.add(outerRings);
+      const clouds = new THREE.Mesh(cloudsGeometry, cloudsMaterial);
+      planetGroup.add(clouds);
     }
 
     scene.add(planetGroup);
@@ -336,6 +353,12 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
                 child.rotation.y += 0.003 * animationSpeed * (24 / planet.rotationPeriod);
               }
             }
+            if (planet.id === 'earth' && child instanceof THREE.Mesh && child.geometry.type === 'SphereGeometry') {
+              const radius = child.geometry.parameters.radius;
+              if (radius > 1.0) {
+                child.rotation.y += 0.004 * animationSpeed;
+              }
+            }
           });
         }
       });
@@ -349,7 +372,7 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
         
         moonRef.current.traverse((child) => {
           if (child instanceof THREE.Mesh) {
-            child.rotation.y += 0.002 * animationSpeed;
+            child.rotation.y = moonAngle;
           }
         });
       }
