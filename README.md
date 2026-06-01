@@ -2,6 +2,8 @@
 
 一个基于 React + Three.js 构建的沉浸式3D太阳系可视化网站，展示八大行星及月球的真实纹理和运动轨迹。
 
+**🌐 在线预览**: [https://solar-system-six-topaz.vercel.app](https://solar-system-six-topaz.vercel.app)
+
 ## ✨ 功能特性
 
 - **3D太阳系场景**
