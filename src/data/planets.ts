@@ -14,6 +14,8 @@ export interface PlanetData {
   emissiveColor?: string;
   hasRings: boolean;
   textureUrl?: string;
+  normalMapUrl?: string;
+  specularMapUrl?: string;
 }
 
 export interface MoonData {
@@ -36,12 +38,13 @@ export const planetsData: PlanetData[] = [
     distanceFromSun: 0.39,
     orbitalPeriod: 88,
     rotationPeriod: 1407.6,
-    orbitalRadius: 5,
+    orbitalRadius: 6,
     eccentricity: 0.2056,
     inclination: 7.005,
     color: '#9E9E9E',
     emissiveColor: '#424242',
     hasRings: false,
+    textureUrl: '/textures/2k_mercury.jpg',
   },
   {
     id: 'venus',
@@ -52,12 +55,13 @@ export const planetsData: PlanetData[] = [
     distanceFromSun: 0.72,
     orbitalPeriod: 224.7,
     rotationPeriod: 5832.5,
-    orbitalRadius: 8,
+    orbitalRadius: 9,
     eccentricity: 0.0067,
     inclination: 3.3947,
     color: '#FFCC80',
     emissiveColor: '#FF9800',
     hasRings: false,
+    textureUrl: '/textures/2k_venus_surface.jpg',
   },
   {
     id: 'earth',
@@ -68,12 +72,13 @@ export const planetsData: PlanetData[] = [
     distanceFromSun: 1,
     orbitalPeriod: 365.25,
     rotationPeriod: 24,
-    orbitalRadius: 11,
+    orbitalRadius: 12,
     eccentricity: 0.0167,
     inclination: 0,
     color: '#64B5F6',
     emissiveColor: '#2196F3',
     hasRings: false,
+    textureUrl: '/textures/2k_earth_daymap.jpg',
   },
   {
     id: 'mars',
@@ -84,12 +89,13 @@ export const planetsData: PlanetData[] = [
     distanceFromSun: 1.52,
     orbitalPeriod: 687,
     rotationPeriod: 24.6,
-    orbitalRadius: 14,
+    orbitalRadius: 15,
     eccentricity: 0.0934,
     inclination: 1.8506,
     color: '#EF5350',
     emissiveColor: '#D32F2F',
     hasRings: false,
+    textureUrl: '/textures/2k_mars.jpg',
   },
   {
     id: 'jupiter',
@@ -100,12 +106,13 @@ export const planetsData: PlanetData[] = [
     distanceFromSun: 5.2,
     orbitalPeriod: 4331,
     rotationPeriod: 9.9,
-    orbitalRadius: 20,
+    orbitalRadius: 22,
     eccentricity: 0.0484,
     inclination: 1.3053,
     color: '#FFB74D',
     emissiveColor: '#FF9800',
     hasRings: false,
+    textureUrl: '/textures/2k_jupiter.jpg',
   },
   {
     id: 'saturn',
@@ -116,12 +123,13 @@ export const planetsData: PlanetData[] = [
     distanceFromSun: 9.5,
     orbitalPeriod: 10747,
     rotationPeriod: 10.7,
-    orbitalRadius: 28,
+    orbitalRadius: 30,
     eccentricity: 0.0542,
     inclination: 2.4845,
     color: '#FFE082',
     emissiveColor: '#FFCA28',
     hasRings: true,
+    textureUrl: '/textures/2k_saturn.jpg',
   },
   {
     id: 'uranus',
@@ -132,12 +140,13 @@ export const planetsData: PlanetData[] = [
     distanceFromSun: 19.2,
     orbitalPeriod: 30589,
     rotationPeriod: 17.2,
-    orbitalRadius: 35,
+    orbitalRadius: 38,
     eccentricity: 0.0472,
     inclination: 0.7726,
     color: '#80DEEA',
     emissiveColor: '#26C6DA',
     hasRings: true,
+    textureUrl: '/textures/2k_uranus.jpg',
   },
   {
     id: 'neptune',
@@ -148,12 +157,13 @@ export const planetsData: PlanetData[] = [
     distanceFromSun: 30.1,
     orbitalPeriod: 59800,
     rotationPeriod: 16.1,
-    orbitalRadius: 42,
+    orbitalRadius: 45,
     eccentricity: 0.0086,
     inclination: 1.7692,
     color: '#7E57C2',
     emissiveColor: '#5E35B1',
     hasRings: true,
+    textureUrl: '/textures/2k_neptune.jpg',
   },
 ];
 
@@ -162,7 +172,7 @@ export const moonData: MoonData = {
   name: 'Moon',
   nameCN: '月球',
   diameter: 3475,
-  orbitalRadius: 2,
+  orbitalRadius: 2.2,
   orbitalPeriod: 27.3,
   color: '#BDBDBD',
 };
@@ -171,7 +181,10 @@ export const sunData = {
   diameter: 1392700,
   mass: 1.989e30,
   color: '#FFD54F',
+  textureUrl: '/textures/2k_sun.jpg',
 };
+
+export const starsTextureUrl = '/textures/2k_stars_milky_way.jpg';
 
 export function formatNumber(num: number): string {
   if (num >= 1e9) {
@@ -189,4 +202,15 @@ export function formatScientific(num: number): string {
   const exponent = Math.floor(Math.log10(Math.abs(num)));
   const coefficient = num / Math.pow(10, exponent);
   return `${coefficient.toFixed(2)} × 10^${exponent}`;
+}
+
+export function calculateEllipsePosition(angle: number, semiMajorAxis: number, eccentricity: number): { x: number; z: number } {
+  const a = semiMajorAxis;
+  const b = a * Math.sqrt(1 - eccentricity * eccentricity);
+  const c = a * eccentricity;
+  
+  const x = a * Math.cos(angle) - c;
+  const z = b * Math.sin(angle);
+  
+  return { x, z };
 }

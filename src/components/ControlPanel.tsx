@@ -47,7 +47,7 @@ export default function ControlPanel({
           <input
             type="range"
             min="0.1"
-            max="5"
+            max="20"
             step="0.1"
             value={animationSpeed}
             onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
@@ -55,7 +55,7 @@ export default function ControlPanel({
           />
           <div className="flex justify-between text-xs text-gray-500 mt-1">
             <span>0.1x</span>
-            <span>5x</span>
+            <span>20x</span>
           </div>
         </div>
 

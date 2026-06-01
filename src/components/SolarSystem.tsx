@@ -1,7 +1,7 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { planetsData, moonData, sunData, type PlanetData } from '../data/planets';
+import { planetsData, moonData, sunData, calculateEllipsePosition, type PlanetData } from '../data/planets';
 
 interface SolarSystemProps {
   isPlaying: boolean;
@@ -11,7 +11,6 @@ interface SolarSystemProps {
 
 export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect }: SolarSystemProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const planetsRef = useRef<Map<string, THREE.Group>>(new Map());
   const moonRef = useRef<THREE.Group | null>(null);
@@ -20,28 +19,29 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
   const timeRef = useRef<number>(0);
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
+  const textureLoaderRef = useRef<THREE.TextureLoader>(new THREE.TextureLoader());
 
   const createStarField = useCallback((scene: THREE.Scene) => {
     const starsGeometry = new THREE.BufferGeometry();
     const starsMaterial = new THREE.PointsMaterial({
       color: 0xffffff,
-      size: 1.5,
+      size: 1.8,
       sizeAttenuation: true,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.9,
     });
 
     const starsVertices: number[] = [];
     const starColors: number[] = [];
     
-    for (let i = 0; i < 15000; i++) {
-      const x = (Math.random() - 0.5) * 2500;
-      const y = (Math.random() - 0.5) * 2500;
-      const z = (Math.random() - 0.5) * 2500;
+    for (let i = 0; i < 20000; i++) {
+      const x = (Math.random() - 0.5) * 3000;
+      const y = (Math.random() - 0.5) * 3000;
+      const z = (Math.random() - 0.5) * 3000;
       starsVertices.push(x, y, z);
       
       const color = new THREE.Color();
-      color.setHSL(Math.random() * 0.2 + 0.55, 0.3, 0.7 + Math.random() * 0.3);
+      color.setHSL(Math.random() * 0.2 + 0.55, 0.2, 0.6 + Math.random() * 0.4);
       starColors.push(color.r, color.g, color.b);
     }
 
@@ -54,48 +54,53 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
   const createSun = useCallback((scene: THREE.Scene) => {
     const sunGroup = new THREE.Group();
     
-    const sunGeometry = new THREE.SphereGeometry(3, 64, 64);
+    const sunGeometry = new THREE.SphereGeometry(3.5, 64, 64);
+    const sunTexture = textureLoaderRef.current.load(sunData.textureUrl);
     const sunMaterial = new THREE.MeshBasicMaterial({
-      color: sunData.color,
+      map: sunTexture,
     });
     const sun = new THREE.Mesh(sunGeometry, sunMaterial);
     sunGroup.add(sun);
 
-    const glowGeometry = new THREE.SphereGeometry(3.3, 64, 64);
+    const glowGeometry = new THREE.SphereGeometry(3.8, 64, 64);
     const glowMaterial = new THREE.MeshBasicMaterial({
       color: 0xffaa00,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.35,
       side: THREE.BackSide,
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     sunGroup.add(glow);
 
-    const outerGlowGeometry = new THREE.SphereGeometry(4, 64, 64);
+    const outerGlowGeometry = new THREE.SphereGeometry(4.5, 64, 64);
     const outerGlowMaterial = new THREE.MeshBasicMaterial({
       color: 0xff6600,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.12,
       side: THREE.BackSide,
     });
     const outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
     sunGroup.add(outerGlow);
 
-    const sunLight = new THREE.PointLight(0xfff5e6, 3, 300);
+    const sunLight = new THREE.PointLight(0xffffff, 2.5, 400);
     sunLight.position.set(0, 0, 0);
-    sunGroup.add(sunLight);
+    scene.add(sunLight);
 
     scene.add(sunGroup);
   }, []);
 
-  const createOrbit = useCallback((scene: THREE.Scene, radius: number, inclination: number) => {
+  const createEllipseOrbit = useCallback((scene: THREE.Scene, semiMajorAxis: number, eccentricity: number) => {
+    const a = semiMajorAxis;
+    const b = a * Math.sqrt(1 - eccentricity * eccentricity);
+    const c = a * eccentricity;
+    
     const points: THREE.Vector3[] = [];
     for (let i = 0; i <= 128; i++) {
       const angle = (i / 128) * Math.PI * 2;
       points.push(new THREE.Vector3(
-        Math.cos(angle) * radius,
+        a * Math.cos(angle) - c,
         0,
-        Math.sin(angle) * radius
+        b * Math.sin(angle)
       ));
     }
 
@@ -103,60 +108,81 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
     const orbitMaterial = new THREE.LineBasicMaterial({
       color: 0x4a5568,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.35,
     });
     const orbit = new THREE.Line(orbitGeometry, orbitMaterial);
     scene.add(orbit);
   }, []);
 
-  const createPlanetWithAtmosphere = useCallback((scene: THREE.Scene, planet: PlanetData): THREE.Group => {
+  const createPlanetWithTexture = useCallback((scene: THREE.Scene, planet: PlanetData): THREE.Group => {
     const planetGroup = new THREE.Group();
-    const baseSize = planet.id === 'jupiter' ? 2 : planet.id === 'saturn' ? 1.8 : 
-                     planet.id === 'uranus' || planet.id === 'neptune' ? 1.2 : 0.8;
+    const baseSize = planet.id === 'jupiter' ? 2.2 : planet.id === 'saturn' ? 1.9 : 
+                     planet.id === 'uranus' || planet.id === 'neptune' ? 1.3 : 0.9;
 
     const planetGeometry = new THREE.SphereGeometry(baseSize, 64, 64);
-    const planetMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(planet.color),
-      emissive: new THREE.Color(planet.emissiveColor || planet.color),
-      emissiveIntensity: 0.3,
-      roughness: 0.8,
-      metalness: 0.1,
-    });
+    
+    let planetMaterial: THREE.MeshBasicMaterial;
+    
+    if (planet.textureUrl) {
+      const texture = textureLoaderRef.current.load(planet.textureUrl);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      
+      planetMaterial = new THREE.MeshBasicMaterial({
+        map: texture,
+      });
+    } else {
+      planetMaterial = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(planet.color),
+      });
+    }
+
     const planetMesh = new THREE.Mesh(planetGeometry, planetMaterial);
     planetMesh.userData = { planet };
     planetGroup.add(planetMesh);
 
-    const atmosphereGeometry = new THREE.SphereGeometry(baseSize * 1.08, 32, 32);
-    const atmosphereMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(planet.color),
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.BackSide,
-    });
-    const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
-    planetGroup.add(atmosphere);
+    if (planet.id === 'earth') {
+      const atmosphereGeometry = new THREE.SphereGeometry(baseSize * 1.05, 32, 32);
+      const atmosphereMaterial = new THREE.MeshBasicMaterial({
+        color: 0x87ceeb,
+        transparent: true,
+        opacity: 0.15,
+        side: THREE.BackSide,
+      });
+      const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+      planetGroup.add(atmosphere);
+    } else if (planet.id === 'venus') {
+      const atmosphereGeometry = new THREE.SphereGeometry(baseSize * 1.06, 32, 32);
+      const atmosphereMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffcc80,
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.BackSide,
+      });
+      const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+      planetGroup.add(atmosphere);
+    }
 
     if (planet.hasRings) {
-      const innerRingGeometry = new THREE.RingGeometry(baseSize * 1.5, baseSize * 2.2, 64);
+      const ringGeometry = new THREE.RingGeometry(baseSize * 1.4, baseSize * 2.3, 128);
       const ringMaterial = new THREE.MeshBasicMaterial({
-        color: 0xd4c5a9,
+        color: 0xc9b896,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.7,
+        opacity: 0.75,
       });
-      const rings = new THREE.Mesh(innerRingGeometry, ringMaterial);
-      rings.rotation.x = Math.PI / 2.5;
+      const rings = new THREE.Mesh(ringGeometry, ringMaterial);
+      rings.rotation.x = Math.PI / 2.4;
       planetGroup.add(rings);
 
-      const outerRingGeometry = new THREE.RingGeometry(baseSize * 2.3, baseSize * 2.8, 64);
+      const outerRingGeometry = new THREE.RingGeometry(baseSize * 2.4, baseSize * 2.9, 64);
       const outerRingMaterial = new THREE.MeshBasicMaterial({
-        color: 0xc9b896,
+        color: 0xa89876,
         side: THREE.DoubleSide,
         transparent: true,
         opacity: 0.4,
       });
       const outerRings = new THREE.Mesh(outerRingGeometry, outerRingMaterial);
-      outerRings.rotation.x = Math.PI / 2.5;
+      outerRings.rotation.x = Math.PI / 2.4;
       planetGroup.add(outerRings);
     }
 
@@ -166,16 +192,14 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
     return planetGroup;
   }, []);
 
-  const createMoonWithAtmosphere = useCallback((scene: THREE.Scene): THREE.Group => {
+  const createMoonWithTexture = useCallback((scene: THREE.Scene): THREE.Group => {
     const moonGroup = new THREE.Group();
     
-    const moonGeometry = new THREE.SphereGeometry(0.35, 32, 32);
-    const moonMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(moonData.color),
-      emissive: 0x555555,
-      emissiveIntensity: 0.1,
-      roughness: 0.9,
-      metalness: 0.1,
+    const moonGeometry = new THREE.SphereGeometry(0.4, 32, 32);
+    const moonTexture = textureLoaderRef.current.load('/textures/2k_moon.jpg');
+    moonTexture.colorSpace = THREE.SRGBColorSpace;
+    const moonMaterial = new THREE.MeshBasicMaterial({
+      map: moonTexture,
     });
     const moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
     moonMesh.userData = { moon: moonData };
@@ -243,9 +267,7 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
     if (!containerRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000814);
-    scene.fog = new THREE.FogExp2(0x000814, 0.0003);
-    sceneRef.current = scene;
+    scene.background = new THREE.Color(0x000510);
 
     const camera = new THREE.PerspectiveCamera(
       60,
@@ -253,36 +275,35 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
       0.1,
       2000
     );
-    camera.position.set(0, 40, 80);
+    camera.position.set(0, 50, 90);
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMappingExposure = 1.0;
     containerRef.current.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.minDistance = 15;
-    controls.maxDistance = 250;
-    controls.autoRotate = false;
+    controls.maxDistance = 280;
 
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+    const ambientLight = new THREE.AmbientLight(0x404050, 0.6);
     scene.add(ambientLight);
 
     createStarField(scene);
     createSun(scene);
 
     planetsData.forEach(planet => {
-      createOrbit(scene, planet.orbitalRadius, planet.inclination);
-      createPlanetWithAtmosphere(scene, planet);
+      createEllipseOrbit(scene, planet.orbitalRadius, planet.eccentricity);
+      createPlanetWithTexture(scene, planet);
     });
 
     earthRef.current = planetsRef.current.get('earth') || null;
-    moonRef.current = createMoonWithAtmosphere(scene);
+    moonRef.current = createMoonWithTexture(scene);
 
     containerRef.current.addEventListener('click', handleClick);
 
@@ -305,14 +326,13 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
         const planetGroup = planetsRef.current.get(planet.id);
         if (planetGroup) {
           const angle = (timeRef.current * 2 * Math.PI) / planet.orbitalPeriod;
-          const x = Math.cos(angle) * planet.orbitalRadius;
-          const z = Math.sin(angle) * planet.orbitalRadius;
-          planetGroup.position.set(x, 0, z);
+          const pos = calculateEllipsePosition(angle, planet.orbitalRadius, planet.eccentricity);
+          planetGroup.position.set(pos.x, 0, pos.z);
           
           planetGroup.traverse((child) => {
             if (child instanceof THREE.Mesh && child.geometry.type === 'SphereGeometry') {
               const size = child.geometry.parameters.radius;
-              if (size > 1) {
+              if (size > 0.5) {
                 child.rotation.y += 0.003 * animationSpeed * (24 / planet.rotationPeriod);
               }
             }
@@ -347,7 +367,7 @@ export default function SolarSystem({ isPlaying, animationSpeed, onPlanetSelect 
       renderer.dispose();
       containerRef.current?.removeChild(renderer.domElement);
     };
-  }, [isPlaying, animationSpeed, createStarField, createSun, createOrbit, createPlanetWithAtmosphere, createMoonWithAtmosphere, handleClick]);
+  }, [isPlaying, animationSpeed, createStarField, createSun, createEllipseOrbit, createPlanetWithTexture, createMoonWithTexture, handleClick]);
 
   return (
     <div
