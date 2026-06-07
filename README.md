@@ -4,6 +4,10 @@
 
 **🌐 在线预览**: [https://solar-system-six-topaz.vercel.app](https://solar-system-six-topaz.vercel.app)
 
+## 🎬 演示动画
+
+![3D太阳系演示](./solarsystem.gif)
+
 ## ✨ 功能特性
 
 - **3D太阳系场景**
